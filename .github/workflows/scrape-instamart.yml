@@ -1,0 +1,42 @@
+name: Scrape Instamart prices
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    # Runs on GitHub-hosted runners because the scraper targets the
+    # instamart.in origin. www.swiggy.com's search API hard-403s these IPs;
+    # instamart.in serves the same API and doesn't — verified from an actual
+    # Actions run. See scrapers/instamart/lib.mjs (ORIGINS).
+    #
+    # This repo is public purely so its Actions minutes are free — see
+    # README.md. The real code lives in the private rama-gorantla repo,
+    # checked out below with a read-only PAT.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: rama-gorantla/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Instamart scraper
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run scrape:instamart

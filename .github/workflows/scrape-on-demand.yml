@@ -1,0 +1,67 @@
+name: On-demand scrape (single term)
+
+on:
+  repository_dispatch:
+    types: [scrape-term]
+
+jobs:
+  # Both stores share one job on purpose: checkout + npm install + Chromium
+  # download is the bulk of the runtime, so running them as separate jobs
+  # would roughly double the Actions minutes this burns per dispatch.
+  #
+  # This repo is public purely so its Actions minutes are free — see
+  # README.md. supabase/functions/search-products' GH_REPO secret must point
+  # here (tvsharish/price-app-mobile-ci), not at the private repo, since
+  # that's what search-products' repository_dispatch call actually targets.
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: rama-gorantla/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape single term (Zepto)
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:zepto:single
+
+      # always() so a Zepto failure doesn't silently skip the others.
+      - name: Scrape single term (Instamart)
+        if: always()
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:instamart:single
+
+      - name: Scrape single term (Blinkit)
+        if: always()
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:blinkit:single

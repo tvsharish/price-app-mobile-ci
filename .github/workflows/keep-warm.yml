@@ -1,0 +1,24 @@
+name: Keep search-products warm
+
+# search-products measured ~1.2-1.4s on a cold Deno isolate/DB connection vs
+# a flat ~0.2-0.3s for the identical query hit directly via PostgREST — the
+# gap is edge-function/connection warmup, not the query itself. Pinging it
+# on a schedule (5 min is GitHub Actions' finest cron granularity) with a
+# trivial real query keeps that connection from going idle between real
+# searches. See the `warmup` branch in supabase/functions/search-products
+# (private repo). Doesn't need a checkout — it's just an HTTP ping.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping search-products
+        run: |
+          curl -s -X POST "https://yzduxxhurgsgezjhobqh.supabase.co/functions/v1/search-products" \
+            -H "Authorization: Bearer sb_publishable_8sCZ-7IwhgRaaDmOcu8V9A_rPwxJtDr" \
+            -H "Content-Type: application/json" \
+            -d '{"warmup":true}'

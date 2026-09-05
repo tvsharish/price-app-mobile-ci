@@ -1,0 +1,45 @@
+name: Scrape Blinkit prices
+
+on:
+  schedule:
+    - cron: '30 */6 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  scrape:
+    # This repo is public purely so its Actions minutes are free (private-repo
+    # minutes are capped at 2,000/month on GitHub Free, and the real
+    # price-app-mobile repo blew through that). The actual code lives there,
+    # private, untouched — this job just checks it out with a read-only PAT
+    # and runs it. See README.md.
+    #
+    # The original assumption was that Blinkit needed TLS impersonation and a
+    # paid proxy (Cloudflare-style 403 on a plain fetch). Confirmed by direct
+    # testing that assumption was wrong: the exact same stealth-Playwright
+    # recipe already used for Instamart gets straight through, and location
+    # is even simpler (plain cookies, no location-select UI flow).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: rama-gorantla/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Blinkit scraper
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run scrape:blinkit
