@@ -8,14 +8,23 @@ on:
 jobs:
   scrape:
     # This repo is public purely so its Actions minutes are free — see
-    # README.md. The real code lives in the private rama-gorantla repo,
-    # checked out below with a read-only PAT.
+    # README.md. The real code lives in tvsharish's own fork of the private
+    # rama-gorantla repo (checked out below), kept current via the sync step,
+    # so this pipeline stays usable even if collaborator access to the
+    # original is ever lost.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: rama-gorantla/price-app-mobile
+          repository: tvsharish/price-app-mobile
           token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
 
       - uses: actions/setup-node@v4
         with:

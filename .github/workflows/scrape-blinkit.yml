@@ -9,9 +9,10 @@ jobs:
   scrape:
     # This repo is public purely so its Actions minutes are free (private-repo
     # minutes are capped at 2,000/month on GitHub Free, and the real
-    # price-app-mobile repo blew through that). The actual code lives there,
-    # private, untouched — this job just checks it out with a read-only PAT
-    # and runs it. See README.md.
+    # price-app-mobile repo blew through that). The actual code lives in
+    # tvsharish's own fork of it (not the rama-gorantla original) so this
+    # pipeline stays usable even if collaborator access to the original is
+    # ever lost — see the sync step below and README.md.
     #
     # The original assumption was that Blinkit needed TLS impersonation and a
     # paid proxy (Cloudflare-style 403 on a plain fetch). Confirmed by direct
@@ -22,8 +23,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: rama-gorantla/price-app-mobile
+          repository: tvsharish/price-app-mobile
           token: ${{ secrets.REPO_PAT }}
+
+      # Best-effort: keeps the fork's code current with upstream on every
+      # run without any separate sync job to maintain. continue-on-error so
+      # a revoked/expired token for the upstream repo degrades to running
+      # whatever the fork last had, rather than failing the whole scrape.
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
 
       - uses: actions/setup-node@v4
         with:

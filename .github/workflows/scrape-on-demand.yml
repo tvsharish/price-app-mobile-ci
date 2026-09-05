@@ -13,13 +13,23 @@ jobs:
   # README.md. supabase/functions/search-products' GH_REPO secret must point
   # here (tvsharish/price-app-mobile-ci), not at the private repo, since
   # that's what search-products' repository_dispatch call actually targets.
+  # The real code lives in tvsharish's own fork (checked out below), kept
+  # current via the sync step, so this stays usable even if collaborator
+  # access to the rama-gorantla original is ever lost.
   scrape:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: rama-gorantla/price-app-mobile
+          repository: tvsharish/price-app-mobile
           token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
 
       - uses: actions/setup-node@v4
         with:
