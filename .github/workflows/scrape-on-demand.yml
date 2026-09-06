@@ -5,10 +5,6 @@ on:
     types: [scrape-term]
 
 jobs:
-  # Both stores share one job on purpose: checkout + npm install + Chromium
-  # download is the bulk of the runtime, so running them as separate jobs
-  # would roughly double the Actions minutes this burns per dispatch.
-  #
   # This repo is public purely so its Actions minutes are free — see
   # README.md. supabase/functions/search-products' GH_REPO secret must point
   # here (tvsharish/price-app-mobile-ci), not at the private repo, since
@@ -16,7 +12,11 @@ jobs:
   # The real code lives in tvsharish's own fork (checked out below), kept
   # current via the sync step, so this stays usable even if collaborator
   # access to the rama-gorantla original is ever lost.
-  scrape:
+
+  # Instamart + Blinkit share one job on purpose: checkout + npm install +
+  # Chromium download is the bulk of the runtime, so running them as separate
+  # jobs would roughly double the Actions minutes this burns per dispatch.
+  scrape-instamart-blinkit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,19 +43,7 @@ jobs:
         working-directory: scrapers
         run: npx playwright install --with-deps chromium
 
-      - name: Scrape single term (Zepto)
-        working-directory: scrapers
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SCRAPE_TERM: ${{ github.event.client_payload.term }}
-          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
-          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
-        run: npm run scrape:zepto:single
-
-      # always() so a Zepto failure doesn't silently skip the others.
       - name: Scrape single term (Instamart)
-        if: always()
         working-directory: scrapers
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -65,6 +53,7 @@ jobs:
           SCRAPE_LNG: ${{ github.event.client_payload.lng }}
         run: npm run scrape:instamart:single
 
+      # always() so an Instamart failure doesn't silently skip Blinkit.
       - name: Scrape single term (Blinkit)
         if: always()
         working-directory: scrapers
@@ -75,3 +64,45 @@ jobs:
           SCRAPE_LAT: ${{ github.event.client_payload.lat }}
           SCRAPE_LNG: ${{ github.event.client_payload.lng }}
         run: npm run scrape:blinkit:single
+
+  # Separate job, separate runner: Zepto's category pages get a CloudFront
+  # 403 from every GitHub-hosted runner IP tested, but work from a home
+  # connection — see scrape-zepto.yml. If zepto-home-runner isn't online
+  # when this fires, only this job queues/waits; Instamart and Blinkit above
+  # still run normally on GitHub-hosted infra regardless.
+  scrape-zepto:
+    runs-on: [self-hosted, zepto-home]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tvsharish/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        shell: bash
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - name: Install dependencies
+        working-directory: scrapers
+        shell: bash
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        shell: bash
+        run: npx playwright install chromium
+
+      - name: Scrape single term (Zepto)
+        working-directory: scrapers
+        shell: bash
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:zepto:single

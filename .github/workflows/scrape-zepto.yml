@@ -12,7 +12,15 @@ jobs:
     # rama-gorantla repo (checked out below), kept current via the sync step,
     # so this pipeline stays usable even if collaborator access to the
     # original is ever lost.
-    runs-on: ubuntu-latest
+    #
+    # Runs on a self-hosted runner (tvsharish's own machine, label
+    # zepto-home) instead of GitHub-hosted ubuntu-latest — Zepto's category
+    # pages return a CloudFront 403 from every GitHub Actions runner IP
+    # tested, but work fine from a home connection. Every other workflow in
+    # this repo stays on ubuntu-latest; only Zepto needs this. If
+    # zepto-home-runner isn't online when this fires, the job just queues
+    # until it is (or until the run is cancelled) rather than failing.
+    runs-on: [self-hosted, zepto-home]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,25 +29,25 @@ jobs:
 
       - name: Sync fork with upstream
         continue-on-error: true
+        shell: bash
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
           git fetch upstream main
           git reset --hard upstream/main
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install dependencies
         working-directory: scrapers
+        shell: bash
         run: npm install
 
       - name: Install Chromium
         working-directory: scrapers
-        run: npx playwright install --with-deps chromium
+        shell: bash
+        run: npx playwright install chromium
 
       - name: Run Zepto scraper
         working-directory: scrapers
+        shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
