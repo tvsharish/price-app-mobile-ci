@@ -36,14 +36,14 @@ jobs:
       # temp script path, "No such file or directory"). PowerShell is
       # unambiguous on a Windows runner.
       - name: Checkout fork
-        shell: pwsh
+        shell: powershell
         run: |
           if (Test-Path repo) { Remove-Item -Recurse -Force repo }
           git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
 
       - name: Sync fork with upstream
         continue-on-error: true
-        shell: pwsh
+        shell: powershell
         working-directory: repo
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
@@ -52,17 +52,17 @@ jobs:
 
       - name: Install dependencies
         working-directory: repo/scrapers
-        shell: pwsh
+        shell: powershell
         run: npm install
 
       - name: Install Chromium
         working-directory: repo/scrapers
-        shell: pwsh
+        shell: powershell
         run: npx playwright install chromium
 
       - name: Run Zepto scraper
         working-directory: repo/scrapers
-        shell: pwsh
+        shell: powershell
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
