@@ -73,31 +73,38 @@ jobs:
   scrape-zepto:
     runs-on: [self-hosted, zepto-home]
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: tvsharish/price-app-mobile
-          token: ${{ secrets.REPO_PAT }}
+      # Plain git clone instead of actions/checkout@v4 — that action's own
+      # post-job temp-directory cleanup reliably throws
+      # "EBUSY: resource busy or locked" on this Windows runner (a known
+      # actions/checkout-on-Windows issue), failing the whole job even
+      # though the checkout itself had already succeeded. See scrape-zepto.yml.
+      - name: Checkout fork
+        shell: bash
+        run: |
+          rm -rf repo
+          git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
 
       - name: Sync fork with upstream
         continue-on-error: true
         shell: bash
+        working-directory: repo
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
           git fetch upstream main
           git reset --hard upstream/main
 
       - name: Install dependencies
-        working-directory: scrapers
+        working-directory: repo/scrapers
         shell: bash
         run: npm install
 
       - name: Install Chromium
-        working-directory: scrapers
+        working-directory: repo/scrapers
         shell: bash
         run: npx playwright install chromium
 
       - name: Scrape single term (Zepto)
-        working-directory: scrapers
+        working-directory: repo/scrapers
         shell: bash
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
