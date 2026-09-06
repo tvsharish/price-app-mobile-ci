@@ -29,15 +29,21 @@ jobs:
       # briefly locking a file it's trying to delete), failing the whole job
       # even though the checkout itself had already succeeded. A plain clone
       # has no such cleanup step to race.
+      #
+      # PowerShell, not bash: this machine has WSL installed alongside Git
+      # Bash, and `shell: bash` resolved to WSL's bash.exe, which mangles
+      # Windows-style paths (stripped every backslash in the runner's own
+      # temp script path, "No such file or directory"). PowerShell is
+      # unambiguous on a Windows runner.
       - name: Checkout fork
-        shell: bash
+        shell: pwsh
         run: |
-          rm -rf repo
+          if (Test-Path repo) { Remove-Item -Recurse -Force repo }
           git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
 
       - name: Sync fork with upstream
         continue-on-error: true
-        shell: bash
+        shell: pwsh
         working-directory: repo
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
@@ -46,17 +52,17 @@ jobs:
 
       - name: Install dependencies
         working-directory: repo/scrapers
-        shell: bash
+        shell: pwsh
         run: npm install
 
       - name: Install Chromium
         working-directory: repo/scrapers
-        shell: bash
+        shell: pwsh
         run: npx playwright install chromium
 
       - name: Run Zepto scraper
         working-directory: repo/scrapers
-        shell: bash
+        shell: pwsh
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
