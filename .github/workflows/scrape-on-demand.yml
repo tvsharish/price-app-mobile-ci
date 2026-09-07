@@ -13,10 +13,10 @@ jobs:
   # current via the sync step, so this stays usable even if collaborator
   # access to the rama-gorantla original is ever lost.
 
-  # Instamart + Blinkit share one job on purpose: checkout + npm install +
-  # Chromium download is the bulk of the runtime, so running them as separate
-  # jobs would roughly double the Actions minutes this burns per dispatch.
-  scrape-instamart-blinkit:
+  # Only Instamart left on GitHub-hosted infra — Zepto and Blinkit both got
+  # moved to the self-hosted runner (see their own jobs below) once each
+  # started hitting a CDN-level 403 specifically from GitHub's IP range.
+  scrape-instamart:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,10 +53,46 @@ jobs:
           SCRAPE_LNG: ${{ github.event.client_payload.lng }}
         run: npm run scrape:instamart:single
 
-      # always() so an Instamart failure doesn't silently skip Blinkit.
+  # Separate job, separate runner: Blinkit's search page gets a Cloudflare
+  # 403 from every GitHub-hosted runner IP tested since 2026-09-02, but works
+  # fine from a home connection — same root cause as Zepto's CloudFront
+  # block, different site. See scrape-blinkit.yml. If zepto-home-runner isn't
+  # online when this fires, only this job queues/waits; Instamart above still
+  # runs normally on GitHub-hosted infra regardless.
+  scrape-blinkit:
+    runs-on: [self-hosted, zepto-home]
+    steps:
+      # Plain git clone + powershell instead of actions/checkout@v4 + bash —
+      # see scrape-zepto.yml for why (EBUSY on checkout's own cleanup; bash
+      # resolves to WSL on this runner and mangles Windows paths).
+      - name: Checkout fork
+        shell: powershell
+        run: |
+          if (Test-Path repo) { Remove-Item -Recurse -Force repo }
+          git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        shell: powershell
+        working-directory: repo
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - name: Install dependencies
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npx playwright install chromium
+
       - name: Scrape single term (Blinkit)
-        if: always()
-        working-directory: scrapers
+        working-directory: repo/scrapers
+        shell: powershell
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -68,20 +104,11 @@ jobs:
   # Separate job, separate runner: Zepto's category pages get a CloudFront
   # 403 from every GitHub-hosted runner IP tested, but work from a home
   # connection — see scrape-zepto.yml. If zepto-home-runner isn't online
-  # when this fires, only this job queues/waits; Instamart and Blinkit above
-  # still run normally on GitHub-hosted infra regardless.
+  # when this fires, only this job queues/waits; Instamart above still runs
+  # normally on GitHub-hosted infra regardless.
   scrape-zepto:
     runs-on: [self-hosted, zepto-home]
     steps:
-      # Plain git clone instead of actions/checkout@v4 — that action's own
-      # post-job temp-directory cleanup reliably throws
-      # "EBUSY: resource busy or locked" on this Windows runner (a known
-      # actions/checkout-on-Windows issue), failing the whole job even
-      # though the checkout itself had already succeeded. See scrape-zepto.yml.
-      #
-      # PowerShell, not bash: this machine has WSL installed alongside Git
-      # Bash, and `shell: bash` resolved to WSL's bash.exe, which mangles
-      # Windows-style paths. PowerShell is unambiguous on a Windows runner.
       - name: Checkout fork
         shell: powershell
         run: |

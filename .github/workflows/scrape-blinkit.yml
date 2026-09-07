@@ -15,42 +15,47 @@ jobs:
     # ever lost — see the sync step below and README.md.
     #
     # The original assumption was that Blinkit needed TLS impersonation and a
-    # paid proxy (Cloudflare-style 403 on a plain fetch). Confirmed by direct
-    # testing that assumption was wrong: the exact same stealth-Playwright
-    # recipe already used for Instamart gets straight through, and location
-    # is even simpler (plain cookies, no location-select UI flow).
-    runs-on: ubuntu-latest
+    # paid proxy (Cloudflare-style 403 on a plain fetch). That was wrong then
+    # — stealth-Playwright alone got through fine for months. But since
+    # 2026-09-02, Cloudflare hard-403s every request specifically from
+    # GitHub's IP range ("sorry, you have been blocked!"), confirmed by the
+    # exact same code succeeding immediately from a home connection — same
+    # root cause as Zepto's CloudFront block, different site. Runs on the
+    # same self-hosted runner (zepto-home) as Zepto for that reason; the
+    # label name predates Blinkit needing this too.
+    runs-on: [self-hosted, zepto-home]
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: tvsharish/price-app-mobile
-          token: ${{ secrets.REPO_PAT }}
+      # Plain git clone instead of actions/checkout@v4 — see scrape-zepto.yml
+      # for why (that action's own cleanup reliably throws EBUSY on this
+      # Windows runner).
+      - name: Checkout fork
+        shell: powershell
+        run: |
+          if (Test-Path repo) { Remove-Item -Recurse -Force repo }
+          git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
 
-      # Best-effort: keeps the fork's code current with upstream on every
-      # run without any separate sync job to maintain. continue-on-error so
-      # a revoked/expired token for the upstream repo degrades to running
-      # whatever the fork last had, rather than failing the whole scrape.
       - name: Sync fork with upstream
         continue-on-error: true
+        shell: powershell
+        working-directory: repo
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
           git fetch upstream main
           git reset --hard upstream/main
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install dependencies
-        working-directory: scrapers
+        working-directory: repo/scrapers
+        shell: powershell
         run: npm install
 
       - name: Install Chromium
-        working-directory: scrapers
-        run: npx playwright install --with-deps chromium
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npx playwright install chromium
 
       - name: Run Blinkit scraper
-        working-directory: scrapers
+        working-directory: repo/scrapers
+        shell: powershell
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
