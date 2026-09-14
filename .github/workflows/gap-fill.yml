@@ -1,0 +1,48 @@
+name: Gap-fill missing cross-store listings
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'  # every 6 hours, off the hour to avoid piling onto the scrape schedules
+  workflow_dispatch: {}
+
+jobs:
+  # No Chromium/Playwright needed — this script only calls Supabase and
+  # fires the same repository_dispatch('scrape-term') event a real search
+  # does; the actual scraping happens downstream in scrape-on-demand.yml
+  # (which already correctly routes Instamart to GitHub-hosted infra and
+  # Blinkit/Zepto to the self-hosted runner). Runs fine on ubuntu-latest.
+  gap-fill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tvsharish/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Dispatch gap-fill scrapes
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Reuses the same PAT already used to check out/sync the fork above
+          # — it already has the repo scope needed to fire a
+          # repository_dispatch event on this same repo, so there's no new
+          # secret to add.
+          GH_DISPATCH_TOKEN: ${{ secrets.REPO_PAT }}
+          GH_REPO: ${{ github.repository }}
+        run: npm run gap-fill
