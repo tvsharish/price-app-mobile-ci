@@ -1,8 +1,25 @@
 name: Scrape Zepto prices
 
 on:
-  schedule:
-    - cron: '0 */3 * * *'
+  # PAUSED 2026-09-20: CloudFront has been returning a 429 (rate limit, not
+  # the original 403 block this runner exists for) to the home IP on every
+  # request since ~Sept 9 - confirmed live via a saved screenshot/HTML
+  # (a genuinely blank page) and the raw response (status 429, empty body,
+  # x-cache: Error from cloudfront). This workflow kept firing every 3
+  # hours for 11 days regardless, which a sliding-window rate limiter would
+  # read as continued abuse and likely kept extending rather than ever
+  # letting expire - the exact opposite of what a cooldown needs.
+  #
+  # scrapers/zepto/lib.mjs now stops a run immediately on the first 429
+  # instead of working through all 28 categories, so re-enabling this
+  # schedule later won't repeat the same mistake at the same scale - but a
+  # real cooldown needs NO traffic at all for a while, which a live
+  # schedule (even a lighter one) can't guarantee. Manually run this via
+  # workflow_dispatch after at least 24-48h of quiet to test whether the
+  # 429 has cleared before restoring the schedule below.
+  #
+  # schedule:
+  #   - cron: '0 */3 * * *'
   workflow_dispatch: {}
 
 jobs:
