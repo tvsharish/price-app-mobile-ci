@@ -106,7 +106,17 @@ jobs:
   # connection — see scrape-zepto.yml. If zepto-home-runner isn't online
   # when this fires, only this job queues/waits; Instamart above still runs
   # normally on GitHub-hosted infra regardless.
+  #
+  # PAUSED 2026-09-20 (if: false below): the 403 above is stale info — since
+  # ~Sept 9 this has actually been a CloudFront 429 rate limit on the home
+  # IP (confirmed live via a saved screenshot/HTML and the raw response),
+  # and this job kept sending it more requests on every on-demand dispatch
+  # regardless, which likely kept the block from ever expiring. Paused
+  # alongside scrape-zepto.yml's schedule for the same cooldown — remove
+  # `if: false` once a manual scrape-zepto.yml run confirms the 429 has
+  # cleared.
   scrape-zepto:
+    if: false
     runs-on: [self-hosted, zepto-home]
     steps:
       - name: Checkout fork
