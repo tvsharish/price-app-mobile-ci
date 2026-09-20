@@ -107,16 +107,12 @@ jobs:
   # when this fires, only this job queues/waits; Instamart above still runs
   # normally on GitHub-hosted infra regardless.
   #
-  # PAUSED 2026-09-20 (if: false below): the 403 above is stale info — since
-  # ~Sept 9 this has actually been a CloudFront 429 rate limit on the home
-  # IP (confirmed live via a saved screenshot/HTML and the raw response),
-  # and this job kept sending it more requests on every on-demand dispatch
-  # regardless, which likely kept the block from ever expiring. Paused
-  # alongside scrape-zepto.yml's schedule for the same cooldown — remove
-  # `if: false` once a manual scrape-zepto.yml run confirms the 429 has
-  # cleared.
+  # Was paused 2026-09-20 for a CloudFront 429 rate-limit cooldown on the
+  # home IP, and separately hit an AWS WAF JS challenge specifically under
+  # headless Chromium — see scrape-zepto.yml for the full story. Both are
+  # addressed now (stop-on-429 + headful by default) and re-enabled
+  # 2026-09-20 after a clean local run through 10+ categories.
   scrape-zepto:
-    if: false
     runs-on: [self-hosted, zepto-home]
     steps:
       - name: Checkout fork
