@@ -4,6 +4,12 @@ on:
   repository_dispatch:
     types: [scrape-term]
 
+# Collapses duplicate dispatches for the same term + location (a user retyping a
+# search, or gap-fill re-picking a gap) into one pending run instead of stacking.
+concurrency:
+  group: on-demand-${{ github.event.client_payload.term }}-${{ github.event.client_payload.lat }}-${{ github.event.client_payload.lng }}
+  cancel-in-progress: false
+
 jobs:
   # This repo is public purely so its Actions minutes are free — see
   # README.md. supabase/functions/search-products' GH_REPO secret must point
@@ -18,6 +24,8 @@ jobs:
   # started hitting a CDN-level 403 specifically from GitHub's IP range.
   scrape-instamart:
     runs-on: ubuntu-latest
+    # Single-term Instamart takes 1-2 min.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,6 +69,8 @@ jobs:
   # runs normally on GitHub-hosted infra regardless.
   scrape-blinkit:
     runs-on: [self-hosted, zepto-home]
+    # Single-term Blinkit takes well under a minute; 20 min only frees a hung runner.
+    timeout-minutes: 20
     steps:
       # Plain git clone + powershell instead of actions/checkout@v4 + bash —
       # see scrape-zepto.yml for why (EBUSY on checkout's own cleanup; bash
@@ -114,6 +124,8 @@ jobs:
   # 2026-09-20 after a clean local run through 10+ categories.
   scrape-zepto:
     runs-on: [self-hosted, zepto-home]
+    # Single-category Zepto takes under a few minutes; 20 min only frees a hung runner.
+    timeout-minutes: 20
     steps:
       - name: Checkout fork
         shell: powershell

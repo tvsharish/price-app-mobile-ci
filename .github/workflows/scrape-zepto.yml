@@ -19,6 +19,15 @@ on:
     - cron: '0 */3 * * *'
   workflow_dispatch: {}
 
+# At most one run at a time, and at most one waiting behind it: when a newer
+# scheduled run is queued, GitHub cancels the older still-pending one. Without
+# this, every 3-hour tick queued its own run while the runner was offline (the
+# runner only exists while run.cmd is open on the home PC), and 6 of the last 14
+# runs sat queued for 24 hours until GitHub cancelled them.
+concurrency:
+  group: scrape-zepto
+  cancel-in-progress: false
+
 jobs:
   scrape:
     # This repo is public purely so its Actions minutes are free — see
@@ -41,6 +50,10 @@ jobs:
     # (see above) needs a real desktop session to render into, which a
     # service account running in Session 0 wouldn't have.
     runs-on: [self-hosted, zepto-home]
+    # A healthy sweep takes 1-20 min (last 14 runs). Four of them instead ran
+    # 7-20 hours before being cancelled by hand — 45 min is generous headroom that
+    # still frees the (single) runner when a headful browser hangs.
+    timeout-minutes: 45
     steps:
       # Plain git clone instead of actions/checkout@v4 — that action's own
       # post-job temp-directory cleanup reliably throws

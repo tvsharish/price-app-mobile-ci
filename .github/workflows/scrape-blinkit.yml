@@ -5,6 +5,12 @@ on:
     - cron: '30 */6 * * *'
   workflow_dispatch: {}
 
+# One run at a time, one pending — see scrape-zepto.yml for why (8 of the last
+# 14 sweeps sat queued 24h behind an offline runner and were auto-cancelled).
+concurrency:
+  group: scrape-blinkit
+  cancel-in-progress: false
+
 jobs:
   scrape:
     # This repo is public purely so its Actions minutes are free (private-repo
@@ -24,6 +30,8 @@ jobs:
     # same self-hosted runner (zepto-home) as Zepto for that reason; the
     # label name predates Blinkit needing this too.
     runs-on: [self-hosted, zepto-home]
+    # Healthy sweeps take 2-30 min; this only stops a hung run holding the single runner.
+    timeout-minutes: 60
     steps:
       # Plain git clone instead of actions/checkout@v4 — see scrape-zepto.yml
       # for why (that action's own cleanup reliably throws EBUSY on this

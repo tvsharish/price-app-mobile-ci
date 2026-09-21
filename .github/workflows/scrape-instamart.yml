@@ -5,6 +5,11 @@ on:
     - cron: '0 */6 * * *'
   workflow_dispatch: {}
 
+# Never let two Instamart sweeps overlap (they write the same rows).
+concurrency:
+  group: scrape-instamart
+  cancel-in-progress: false
+
 jobs:
   scrape:
     # Runs on GitHub-hosted runners because the scraper targets the
@@ -18,6 +23,8 @@ jobs:
     # so this pipeline stays usable even if collaborator access to the
     # original is ever lost.
     runs-on: ubuntu-latest
+    # Sweeps take 117-173 min (all locations x all terms); 4h leaves margin without allowing a runaway.
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
         with:
