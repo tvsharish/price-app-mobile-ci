@@ -1,0 +1,69 @@
+name: Headful vs headless probe (experiment)
+
+# Manual-only experiment. Question: do Zepto and Blinkit really need the home
+# PC? Evidence so far: Zepto's AWS WAF refused HEADLESS Chromium but served the
+# same page HEADFUL from the same home IP; Blinkit's Cloudflare hard-403s
+# GitHub's IP range (per scrapers/blinkit/lib.mjs) — but that was observed
+# headless. This runs one request per store x mode from a GitHub-hosted
+# runner, headful under xvfb vs headless, so the two variables (browser mode,
+# datacenter IP) are separated.
+#
+# Reads/writes nothing in Supabase (dummy key). One page request per job.
+# Read the RESULT lines in each job's log, or the summary on the run page.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        store: [zepto, blinkit]
+        mode: [headful, headless]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tvsharish/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install --no-audit --no-fund
+
+      - name: Install Chromium and xvfb
+        working-directory: scrapers
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb
+          npx playwright install --with-deps chromium
+
+      - name: Probe ${{ matrix.store }} (${{ matrix.mode }})
+        working-directory: scrapers
+        env:
+          PROBE_STORE: ${{ matrix.store }}
+          PROBE_HEADLESS: ${{ matrix.mode == 'headless' && '1' || '0' }}
+          # zepto/lib.mjs imports the Supabase admin client at load time, which
+          # insists on a non-empty key. A dummy value — this probe never
+          # touches the database, and must not be handed the real key.
+          SUPABASE_SERVICE_ROLE_KEY: probe-not-a-real-key
+        run: |
+          xvfb-run -a --server-args="-screen 0 1280x1024x24" node probe.mjs | tee probe.log
+          {
+            echo "### ${{ matrix.store }} — ${{ matrix.mode }}"
+            echo '```'
+            grep '^RESULT ' probe.log | sed 's/^RESULT //'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
