@@ -1,0 +1,54 @@
+name: On-demand scrape (Blinkit only)
+
+# Fired by scrapers/gap-fill.mjs for catalog products missing from Blinkit. Same
+# job as scrape-on-demand.yml's scrape-blinkit, without the Zepto job — Zepto's
+# single-term scraper can't search by product name, so queueing it for a gap-fill
+# term only burns home-runner minutes (checkout + npm install + Chromium) for a no-op.
+on:
+  repository_dispatch:
+    types: [scrape-term-blinkit]
+
+concurrency:
+  group: on-demand-blinkit-${{ github.event.client_payload.term }}-${{ github.event.client_payload.lat }}-${{ github.event.client_payload.lng }}
+  cancel-in-progress: false
+
+jobs:
+  scrape-blinkit:
+    runs-on: [self-hosted, zepto-home]
+    timeout-minutes: 20
+    steps:
+      - name: Checkout fork
+        shell: powershell
+        run: |
+          if (Test-Path repo) { Remove-Item -Recurse -Force repo }
+          git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        shell: powershell
+        working-directory: repo
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - name: Install dependencies
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npx playwright install chromium
+
+      - name: Scrape single term (Blinkit)
+        working-directory: repo/scrapers
+        shell: powershell
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:blinkit:single
