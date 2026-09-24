@@ -53,7 +53,7 @@ jobs:
     # A healthy sweep takes 1-20 min (last 14 runs). Four of them instead ran
     # 7-20 hours before being cancelled by hand — 45 min is generous headroom that
     # still frees the (single) runner when a headful browser hangs.
-    timeout-minutes: 45
+    timeout-minutes: 90
     steps:
       # Plain git clone instead of actions/checkout@v4 — that action's own
       # post-job temp-directory cleanup reliably throws
