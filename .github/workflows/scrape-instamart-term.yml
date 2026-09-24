@@ -1,0 +1,51 @@
+name: On-demand scrape (Instamart only)
+
+# Fired by scrapers/gap-fill.mjs for catalog products missing from Instamart.
+# Same job as scrape-on-demand.yml's scrape-instamart, without the Blinkit/Zepto
+# jobs, so filling Instamart gaps never queues behind the single home runner.
+on:
+  repository_dispatch:
+    types: [scrape-term-instamart]
+
+concurrency:
+  group: on-demand-instamart-${{ github.event.client_payload.term }}-${{ github.event.client_payload.lat }}-${{ github.event.client_payload.lng }}
+  cancel-in-progress: false
+
+jobs:
+  scrape-instamart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tvsharish/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        run: npx playwright install --with-deps chromium
+
+      - name: Scrape single term (Instamart)
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPE_TERM: ${{ github.event.client_payload.term }}
+          SCRAPE_LAT: ${{ github.event.client_payload.lat }}
+          SCRAPE_LNG: ${{ github.event.client_payload.lng }}
+        run: npm run scrape:instamart:single
