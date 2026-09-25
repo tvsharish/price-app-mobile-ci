@@ -2,7 +2,7 @@ name: Gap-fill missing cross-store listings
 
 on:
   schedule:
-    - cron: '17 */6 * * *'  # every 6 hours, off the hour to avoid piling onto the scrape schedules
+    - cron: '17 */3 * * *'  # every 3 hours, off the hour to avoid piling onto the scrape schedules
   workflow_dispatch: {}
 
 # Never run two gap-fill dispatch passes at once.
@@ -52,4 +52,6 @@ jobs:
           # secret to add.
           GH_DISPATCH_TOKEN: ${{ secrets.REPO_PAT }}
           GH_REPO: ${{ github.repository }}
+          # Instamart-only runs are free GitHub-hosted minutes, so allow more per pass.
+          GAP_FILL_MAX_INSTAMART_DISPATCHES: "25"
         run: npm run gap-fill
