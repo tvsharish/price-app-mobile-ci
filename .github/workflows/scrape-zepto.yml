@@ -51,9 +51,9 @@ jobs:
     # service account running in Session 0 wouldn't have.
     runs-on: [self-hosted, zepto-home]
     # A healthy sweep took 1-20 min at 28 pages, and 36-44 min at 60 pages (about 40s/page, mostly DB writes for 2 locations). Four earlier runs instead ran
-    # 7-20 hours before being cancelled by hand. 90 min covers the 87-page list with headroom and
+    # 7-20 hours before being cancelled by hand. 120 min covers the ~107-page list (87 pages took 65 min) with headroom and
     # still frees the (single) runner when a headful browser hangs.
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       # Plain git clone instead of actions/checkout@v4 — that action's own
       # post-job temp-directory cleanup reliably throws
