@@ -16,7 +16,9 @@ on:
   # categories, so re-enabling this schedule shouldn't repeat either mistake.
   # Re-enabled 2026-09-20 after a clean local run through 10+ categories.
   schedule:
-    - cron: '0 */3 * * *'
+    # Every 6h, not 3h: a 108-page sweep takes 65-120 min, and every 3h left the
+    # single home runner too little room for Blinkit's own runs and gap-fill.
+    - cron: '0 */6 * * *'
   workflow_dispatch: {}
 
 # At most one run at a time, and at most one waiting behind it: when a newer
