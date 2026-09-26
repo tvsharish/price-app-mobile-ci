@@ -1,0 +1,51 @@
+name: Scrape JioMart prices
+
+on:
+  schedule:
+    - cron: '15 3,11,19 * * *'
+  workflow_dispatch: {}
+
+# Never let two JioMart sweeps overlap (they write the same rows).
+concurrency:
+  group: scrape-jiomart
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    # GitHub-hosted runner. JioMart has not been verified from these IPs yet -
+    # if the first run fails with 403s/no responses, switch runs-on to the
+    # self-hosted [self-hosted, zepto-home] runner like Blinkit/Zepto.
+    runs-on: ubuntu-latest
+    # Sweep length unknown until the first run; 3h cap stops a runaway.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: tvsharish/price-app-mobile
+          token: ${{ secrets.REPO_PAT }}
+
+      - name: Sync fork with upstream
+        continue-on-error: true
+        run: |
+          git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
+          git fetch upstream main
+          git reset --hard upstream/main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: scrapers
+        run: npm install
+
+      - name: Install Chromium
+        working-directory: scrapers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run JioMart scraper
+        working-directory: scrapers
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run scrape:jiomart
