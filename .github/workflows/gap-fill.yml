@@ -54,4 +54,9 @@ jobs:
           GH_REPO: ${{ github.repository }}
           # Instamart-only runs are free GitHub-hosted minutes, so allow more per pass.
           GAP_FILL_MAX_INSTAMART_DISPATCHES: "25"
+          # Lowered from the 10 default: 10 Blinkit-only dispatches fired back to
+          # back (each only ~1-2 min of job overhead apart) was enough volume to
+          # trip Blinkit's Cloudflare block on the home IP - confirmed live via
+          # repeated "access denied / sorry, you have been blocked" failures.
+          GAP_FILL_MAX_DISPATCHES: "4"
         run: npm run gap-fill
