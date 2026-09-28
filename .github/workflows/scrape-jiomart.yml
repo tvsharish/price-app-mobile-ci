@@ -12,39 +12,52 @@ concurrency:
 
 jobs:
   scrape:
-    # GitHub-hosted runner. JioMart has not been verified from these IPs yet -
-    # if the first run fails with 403s/no responses, switch runs-on to the
-    # self-hosted [self-hosted, zepto-home] runner like Blinkit/Zepto.
-    runs-on: ubuntu-latest
-    # Sweep length unknown until the first run; 3h cap stops a runaway.
+    # Runs on the self-hosted zepto-home runner, not ubuntu-latest: two runs
+    # from GitHub-hosted IPs (2026-09-26, 2026-09-28) both showed the same
+    # shape of soft block Zepto hit — the first few search terms came back
+    # with suspiciously empty results, then almost every later term simply
+    # timed out waiting for JioMart's own response (30s, no error, no data).
+    # Local runs from a home IP return real results in ~5s/term (verified).
+    #
+    # This runner isn't installed as a Windows service — it only runs while
+    # someone has run.cmd open in an interactive session on that machine.
+    # If zepto-home-runner isn't online when this fires, the job just queues
+    # until it is (or until the run is cancelled) rather than failing.
+    runs-on: [self-hosted, zepto-home]
+    # Sweep length unknown until the first successful run; 3h cap stops a runaway.
     timeout-minutes: 180
     steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: tvsharish/price-app-mobile
-          token: ${{ secrets.REPO_PAT }}
+      # Plain git clone instead of actions/checkout@v4 — see scrape-zepto.yml:
+      # that action's own post-job cleanup reliably throws EBUSY on this
+      # Windows runner even after a successful checkout.
+      - name: Checkout fork
+        shell: powershell
+        run: |
+          if (Test-Path repo) { Remove-Item -Recurse -Force repo }
+          git clone --depth 1 https://x-access-token:${{ secrets.REPO_PAT }}@github.com/tvsharish/price-app-mobile.git repo
 
       - name: Sync fork with upstream
         continue-on-error: true
+        shell: powershell
+        working-directory: repo
         run: |
           git remote add upstream https://x-access-token:${{ secrets.REPO_PAT }}@github.com/rama-gorantla/price-app-mobile.git
           git fetch upstream main
           git reset --hard upstream/main
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
       - name: Install dependencies
-        working-directory: scrapers
+        working-directory: repo/scrapers
+        shell: powershell
         run: npm install
 
       - name: Install Chromium
-        working-directory: scrapers
-        run: npx playwright install --with-deps chromium
+        working-directory: repo/scrapers
+        shell: powershell
+        run: npx playwright install chromium
 
       - name: Run JioMart scraper
-        working-directory: scrapers
+        working-directory: repo/scrapers
+        shell: powershell
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
