@@ -42,6 +42,15 @@ jobs:
         shell: powershell
         run: npx playwright install chromium
 
+      # Gap-fill's own Blinkit-only jobs run back to back on this single runner
+      # with little more than checkout/install overhead between them, which was
+      # enough request volume to trip Blinkit's Cloudflare block on the home IP
+      # (confirmed via repeated "access denied / sorry, you have been blocked"
+      # failures) — see gap-fill.yml's lowered GAP_FILL_MAX_DISPATCHES too.
+      - name: Space out consecutive gap-fill dispatches
+        shell: powershell
+        run: Start-Sleep -Seconds (Get-Random -Minimum 20 -Maximum 60)
+
       - name: Scrape single term (Blinkit)
         working-directory: repo/scrapers
         shell: powershell
