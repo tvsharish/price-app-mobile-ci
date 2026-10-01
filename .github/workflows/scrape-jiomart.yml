@@ -1,8 +1,15 @@
 name: Scrape JioMart prices
 
 on:
-  schedule:
-    - cron: '15 3,11,19 * * *'
+  # Schedule paused 2026-10-01: every run since 2026-09-30 has hit the exact
+  # same 30s-timeout-on-every-term block from this home IP, both locations,
+  # with only one clean success before that (2026-09-28). Each guaranteed-
+  # fail attempt still ties up the single zepto-home runner for ~5-6 min,
+  # delaying Zepto/Blinkit/DMart behind it for no benefit. Re-enable the
+  # schedule once the block is understood (different IP? longer cooldown?) —
+  # workflow_dispatch below still works for a one-off manual test meanwhile.
+  # schedule:
+  #   - cron: '15 3,11,19 * * *'
   workflow_dispatch: {}
 
 # Never let two JioMart sweeps overlap (they write the same rows).
